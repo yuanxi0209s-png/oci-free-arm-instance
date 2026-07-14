@@ -2,85 +2,58 @@ name: Try to Create OCI VM
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+      - cron: '*/10 * * * *'
+        workflow_dispatch:
 
-jobs:
-  create-vm:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+        jobs:
+          create-vm:
+              runs-on: ubuntu-latest
+                  steps:
+                        - name: Checkout code
+                                uses: actions/checkout@v4
 
-      - name: Install OCI CLI
-        run: |
-          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-defaults
-          echo "$HOME/bin" >> $GITHUB_PATH
+                                      - name: Install OCI CLI
+                                              run: |
+                                                        curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-defaults
+                                                                  echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Configure OCI CLI
-        run: |
-          mkdir -p ~/.oci
-          cat > ~/.oci/config << EOF
-          [DEFAULT]
-          user=${{ secrets.OCI_CLI_USER }}
-          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
-          tenancy=${{ secrets.OCI_CLI_TENANCY }}
-          region=${{ secrets.OCI_CLI_REGION }}
-          key_file=/tmp/oci_api_key.pem
-          EOF
-          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > /tmp/oci_api_key.pem
-          chmod 600 /tmp/oci_api_key.pem
-
-      - name: Try to Create Instance
-        run: |
-          set +e
-          echo "Attempting to create ARM instance..."
-          oci compute instance launch \
-            --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
-            --availability-domain ${{ secrets.AD_NAME }} \
-            --display-name "oci-arm-vm" \
-            --image-id ${{ secrets.IMAGE_ID }} \
-            --shape VM.Standard.A1.Flex \
-            --shape-config '{"ocpus":4,"memoryInGBs":24}' \
-            --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
-            --ssh-ssh-public-keys "${{ secrets.SSH_PUBLIC_KEY }}" \
-            --boot-volume-size-in-gbs 200 \
-            --assign-public-ip true || true
-
-          # Check if instance was created successfully
-          INSTANCE_ID=$(oci compute instance list \
-            --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
-            --display-name "oci-arm-vm" \
-            --query 'data[0].id' \
-            --raw-output 2>/dev/null)
-
-          if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "" ]; then
-            echo "::notice::✅ Instance created successfully! ID: $INSTANCE_ID"
-            echo "INSTANCE_CREATED=true" >> $GITHUB_ENV
-            echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
-          else
-            echo "::warning::❌ Instance creation failed (likely Out of Capacity). Will retry in 10 minutes."
-            exit 1
-          fi
-
-      - name: Notify on Success
-        if: success()
-        run: |
-          echo "========================================="
-          echo "🎉 OCI ARM Instance Created Successfully!"
-          echo "========================================="
-          echo "Instance Name: oci-arm-vm"
-          echo "Shape: VM.Standard.A1.Flex (4 OCPU, 24 GB RAM)"
-          echo "Image: Ubuntu 22.04 Minimal aarch64"
-          echo "Boot Volume: 200 GB"
-          echo ""
-          echo "IMPORTANT: Go to OCI Console and DISABLE this workflow!"
-          echo "Actions → Try to Create OCI VM → ⋯ → Disable workflow"
-          echo "========================================="
-
-      - name: Notify on Failure
-        if: failure()
-        run: |
-          echo "Instance creation failed. The script will automatically retry in ~10 minutes."
-          echo "Common reason: Out of host capacity for VM.Standard.A1.Flex"
-          echo "Just keep waiting - it usually succeeds within hours to days."
+                                                                        - name: Configure OCI CLI
+                                                                                run: |
+                                                                                          mkdir -p ~/.oci
+                                                                                                    cat > ~/.oci/config << EOF
+                                                                                                              [DEFAULT]
+                                                                                                                        user=${{ secrets.OCI_CLI_USER }}
+                                                                                                                                  fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+                                                                                                                                            tenancy=${{ secrets.OCI_CLI_TENANCY }}
+                                                                                                                                                      region=${{ secrets.OCI_CLI_REGION }}
+                                                                                                                                                                key_file=/tmp/oci_api_key.pem
+                                                                                                                                                                          EOF
+                                                                                                                                                                                    echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > /tmp/oci_api_key.pem
+                                                                                                                                                                                              chmod 600 /tmp/oci_api_key.pem
+                                                                                                                                                                                                        echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/ssh_key.pub
+                                                                                                                                                                                                        
+                                                                                                                                                                                                              - name: Try to Create Instance
+                                                                                                                                                                                                                      run: |
+                                                                                                                                                                                                                                set +e
+                                                                                                                                                                                                                                          oci compute instance launch \
+                                                                                                                                                                                                                                                      --compartment-id "${{ secrets.OCI_COMPARTMENT_ID }}" \
+                                                                                                                                                                                                                                                                  --availability-domain "${{ secrets.AD_NAME }}" \
+                                                                                                                                                                                                                                                                              --shape "VM.Standard.A1.Flex" \
+                                                                                                                                                                                                                                                                                          --shape-config '{"ocpus":4,"memoryInGBs":24}' \
+                                                                                                                                                                                                                                                                                                      --image-id "${{ secrets.IMAGE_ID }}" \
+                                                                                                                                                                                                                                                                                                                  --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
+                                                                                                                                                                                                                                                                                                                              --assign-public-ip true \
+                                                                                                                                                                                                                                                                                                                                          --ssh-authorized-keys-file /tmp/ssh_key.pub \
+                                                                                                                                                                                                                                                                                                                                                      --boot-volume-size-in-gbs 200 \
+                                                                                                                                                                                                                                                                                                                                                                  --display-name "oci-arm-vm"
+                                                                                                                                                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                                                                                                                                            EXIT_CODE=$?
+                                                                                                                                                                                                                                                                                                                                                                                      echo "Exit code: $EXIT_CODE"
+                                                                                                                                                                                                                                                                                                                                                                                      
+                                                                                                                                                                                                                                                                                                                                                                                                if [ $EXIT_CODE -eq 0 ]; then
+                                                                                                                                                                                                                                                                                                                                                                                                            echo "SUCCESS: Instance created!"
+                                                                                                                                                                                                                                                                                                                                                                                                                      else
+                                                                                                                                                                                                                                                                                                                                                                                                                                  echo "Failed (likely out of capacity), will retry next schedule."
+                                                                                                                                                                                                                                                                                                                                                                                                                                            fi
+                                                                                                                                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      exit 0
